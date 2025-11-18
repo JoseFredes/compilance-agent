@@ -16,8 +16,6 @@ interface run {
 
 const app = new Hono<{ Bindings: Env }>()
 
-app.get('/', (c) => c.json({ status: 'ok' }))
-
 const validateBody = (body: unknown): boolean => {
     const { question } = body as QuestionRequestBody;
     return (
@@ -38,6 +36,9 @@ const createRun = (question: string) : run => {
     }
 }
 
+app.get('/', (c) => c.json({ status: 'ok' }))
+
+
 app.post('/question', async (c) => {
     const body = await c.req.json();
 
@@ -52,7 +53,6 @@ app.post('/question', async (c) => {
     console.log(run)
 
     return c.json({ message: 'Question received', question: body.question })
-
 })
 
 export default app
