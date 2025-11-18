@@ -39,8 +39,6 @@ const createRun = (question: string) : Run => {
     }
 }
 
-// create temporal runs in memory
-const runs: Map<string, Run> = new Map();
 
 app.get('/', (c) => c.json({ status: 'ok' }))
 
