@@ -1,0 +1,2 @@
+name = "skyward-compliance-agent"
+main = "src/index.ts"

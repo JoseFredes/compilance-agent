@@ -4,12 +4,19 @@
   "type": "module",
   "private": true,
   "devDependencies": {
-    "@types/bun": "latest"
+    "@cloudflare/workers-types": "^4.20251117.0",
+    "@types/bun": "latest",
+    "wrangler": "^4.47.0"
   },
   "peerDependencies": {
-    "typescript": "^5"
+    "typescript": "^5.9.3"
   },
   "dependencies": {
     "hono": "^4.10.6"
+  },
+  "scripts": {
+    "build": "esbuild src/index.ts --bundle --platform=neutral --format=esm --outfile=dist/index.mjs",
+    "dev": "wrangler dev",
+    "deploy": "wrangler deploy"
   }
 }
