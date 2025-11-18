@@ -8,7 +8,7 @@ interface QuestionRequestBody {
 
 type RunStatus = 'created';
 
-interface run {
+interface Run {
     id: string;
     question: string;
     status: RunStatus;
@@ -25,7 +25,7 @@ const validateBody = (body: unknown): boolean => {
 }
 
 
-const createRun = (question: string) : run => {
+const createRun = (question: string) : Run => {
     const uuid = crypto.randomUUID();
     const status:RunStatus = 'created';
 
@@ -35,6 +35,9 @@ const createRun = (question: string) : run => {
         status
     }
 }
+
+// create temporal runs in memory
+const runs: Map<string, Run> = new Map();
 
 app.get('/', (c) => c.json({ status: 'ok' }))
 
@@ -50,9 +53,23 @@ app.post('/question', async (c) => {
 
     const run = createRun(question)
 
+    runs.set(run.id, run);
+
     console.log(run)
 
     return c.json({ message: 'Question received', question: body.question })
+})
+
+app.get('/run/:id', async (c) => {
+    const { id } = c.req.param();
+
+    const run = runs.get(id);
+
+    if (!run) {
+        return c.json({ message: 'Run not found' }, 404);
+    }
+
+    return c.json(run);
 })
 
 export default app
