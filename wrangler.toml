@@ -3,7 +3,6 @@ main = "src/index.ts"
 compatibility_date = "2025-11-09"
 
 
-[kv_namespaces]
 [[kv_namespaces]]
 binding = "RUNS_KV"
 id = "dummy-id-for-local"
