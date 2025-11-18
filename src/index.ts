@@ -61,8 +61,8 @@ app.post('/question', async (c) => {
 })
 
 app.get('/run/:id', async (c) => {
-    const { id } = c.req.param();
-
+    const id = c.req.param("id");
+    
     const run = runs.get(id);
 
     if (!run) {
@@ -70,6 +70,10 @@ app.get('/run/:id', async (c) => {
     }
 
     return c.json(run);
+})
+
+app.get('/runs', async (c) => {
+    return c.json(Array.from(runs.values()));
 })
 
 export default app
