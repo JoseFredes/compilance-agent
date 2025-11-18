@@ -1,6 +1,8 @@
 import { Hono } from 'hono'
 
-type Env = {}
+type Env = {
+    RUNS_KV: KVNamespace
+}
 
 interface QuestionRequestBody {
     question: string
@@ -15,6 +17,7 @@ interface Run {
 }
 
 const app = new Hono<{ Bindings: Env }>()
+
 
 const validateBody = (body: unknown): boolean => {
     const { question } = body as QuestionRequestBody;
@@ -53,7 +56,7 @@ app.post('/question', async (c) => {
 
     const run = createRun(question)
 
-    runs.set(run.id, run);
+    await c.env.RUNS_KV.put(run.id, JSON.stringify(run));
 
     console.log(run)
 
@@ -63,17 +66,23 @@ app.post('/question', async (c) => {
 app.get('/run/:id', async (c) => {
     const id = c.req.param("id");
     
-    const run = runs.get(id);
+    const run = await c.env.RUNS_KV.get(id);
 
     if (!run) {
         return c.json({ message: 'Run not found' }, 404);
     }
-
-    return c.json(run);
+    
+    return c.json(JSON.parse(run as string));
 })
 
 app.get('/runs', async (c) => {
-    return c.json(Array.from(runs.values()));
+    const runs = await c.env.RUNS_KV.get('runs');
+    if (!runs) {
+        return c.json({ message: 'No runs found' }, 404);
+    } 
+       
+    return c.json(JSON.parse(runs as string));
+    
 })
 
 export default app
