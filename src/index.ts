@@ -62,25 +62,24 @@ app.post('/question', async (c) => {
 })
 
 app.get('/run/:id', async (c) => {
-    const id = c.req.param("id");
-    
-    const run = await c.env.RUNS_KV.get(id);
+    const id = c.req.param('id');
+   
+    if (!id) {
+        return c.json({ message: 'Invalid ID' }, 400);
+    }
 
+    const run = await c.env.RUNS_KV.get(id);
+   
     if (!run) {
         return c.json({ message: 'Run not found' }, 404);
     }
-    
+
     return c.json(JSON.parse(run as string));
-})
+});
 
 app.get('/runs', async (c) => {
-    const runs = await c.env.RUNS_KV.get('runs');
-    if (!runs) {
-        return c.json({ message: 'No runs found' }, 404);
-    } 
-       
-    return c.json(JSON.parse(runs as string));
-    
+    const runs = await c.env.RUNS_KV.list();
+    return c.json(runs);
 })
 
 export default app
