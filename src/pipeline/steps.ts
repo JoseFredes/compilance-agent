@@ -115,15 +115,15 @@ export const selectLawsStep: Step = {
 
 /**
  * Step 2: Extract obligations from selected laws
- * Analyzes each law using REAL PDF text and extracts relevant compliance obligations
+ * Analyzes each law using real PDF text and extracts relevant compliance obligations
  */
 export const extractObligationsStep: Step = {
   name: "extract_obligations",
   async run(run: Run, env: Env) {
-    appendLog(run, "[extract_obligations] Extracting obligations from real PDF texts...");
+    appendLog(run, "[extract_obligations] Extracting obligations...");
 
     if (!run.selectedLawIds || run.selectedLawIds.length === 0) {
-      appendLog(run, "[extract_obligations] No laws selected, nothing to extract");
+      appendLog(run, "[extract_obligations] No laws selected");
       run.obligations = [];
       return;
     }
@@ -133,30 +133,26 @@ export const extractObligationsStep: Step = {
     for (const lawId of run.selectedLawIds) {
       const law = getLawById(lawId);
       if (!law) {
-        appendLog(run, `[extract_obligations] Law not found for ID: ${lawId}`);
+        appendLog(run, `[extract_obligations] Law not found: ${lawId}`);
         continue;
       }
 
-      appendLog(run, `[extract_obligations] Loading real PDF text for ${law.name}`);
+      appendLog(run, `[extract_obligations] Processing ${law.name}`);
 
-      // Load real PDF text
       let lawText: string;
       try {
         lawText = await loadLawText(env, run, lawId, (msg) => appendLog(run, msg));
-        appendLog(run, `[extract_obligations] Loaded ${lawText.length} chars from ${law.name}`);
+        appendLog(run, `[extract_obligations] Loaded ${lawText.length} chars`);
       } catch (error) {
-        appendLog(run, `[extract_obligations] Failed to load PDF text: ${error}`);
+        appendLog(run, `[extract_obligations] Failed to load text: ${error}`);
         lawText = "";
       }
 
-      // Truncate to relevant sections based on keywords and question
       const relevantText = truncateLawText(lawText, 8000);
-      appendLog(run, `[extract_obligations] Truncated to ${relevantText.length} chars of relevant content`);
+      appendLog(run, `[extract_obligations] Analyzing ${relevantText.length} chars`);
 
-      // Get structured obligations as backup
       const structuredObligations = getObligationsForLaw(lawId);
 
-      // Use LLM to extract obligations from real PDF text
       const extractionPrompt = `You are a legal expert analyzing Chilean law text. Extract the key compliance obligations relevant to the user's question.
 
 Law: ${law.name}
@@ -173,13 +169,12 @@ Summary:`;
       let extractedSummary: string;
       try {
         extractedSummary = (await callLlm(env, run, extractionPrompt, (msg) => appendLog(run, msg), 800)).trim();
-        appendLog(run, `[extract_obligations] Extracted ${extractedSummary.length} chars from LLM`);
+        appendLog(run, `[extract_obligations] Extracted ${extractedSummary.length} chars`);
       } catch (error) {
-        appendLog(run, `[extract_obligations] LLM failed, using structured template`);
+        appendLog(run, `[extract_obligations] LLM failed, using fallback`);
         extractedSummary = "";
       }
 
-      // Use LLM response if good, otherwise use structured template
       const finalSummary = extractedSummary && extractedSummary.length > 100
         ? extractedSummary
         : structuredObligations;
@@ -195,7 +190,7 @@ Summary:`;
     }
 
     run.obligations = obligations;
-    appendLog(run, `[extract_obligations] Generated ${obligations.length} obligations from real PDF texts`);
+    appendLog(run, `[extract_obligations] Generated ${obligations.length} obligations`);
   },
 };
 
