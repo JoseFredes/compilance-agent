@@ -1,8 +1,3 @@
-/**
- * Structured obligations for each law
- * These provide consistent, accurate compliance guidance
- */
-
 export const LAW_OBLIGATIONS: Record<string, string> = {
   LEY_21521: `As a fintech company under Law 21.521, you must:
 

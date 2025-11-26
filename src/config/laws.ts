@@ -1,8 +1,3 @@
-/**
- * Law documents configuration
- * Contains metadata for all supported Chilean laws
- */
-
 import type { LawDoc } from "../types";
 
 export const LAW_DOCUMENTS: LawDoc[] = [
@@ -33,9 +28,6 @@ export const LAW_DOCUMENTS: LawDoc[] = [
   },
 ];
 
-/**
- * Gets a law document by its ID
- */
 export const getLawById = (id: string): LawDoc | undefined => {
   return LAW_DOCUMENTS.find((law) => law.id === id);
 };

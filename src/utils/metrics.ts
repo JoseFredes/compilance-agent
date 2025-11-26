@@ -1,12 +1,5 @@
-/**
- * Metrics tracking utilities
- */
+import type { Run } from "../types";
 
-import type { Run, ToolMetric } from "../types";
-
-/**
- * Records a tool execution metric
- */
 export const recordToolMetric = (run: Run, toolName: string, durationMs: number): void => {
   if (!run.tools) {
     run.tools = [];
@@ -26,9 +19,6 @@ export const recordToolMetric = (run: Run, toolName: string, durationMs: number)
   }
 };
 
-/**
- * Measures the execution time of a tool and records the metric
- */
 export const measureTool = async <T>(
   run: Run,
   toolName: string,

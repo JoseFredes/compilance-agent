@@ -1,7 +1,3 @@
-/**
- * Request validation utilities
- */
-
 import { ZodError } from "zod";
 import { QuestionRequestSchema } from "../schemas";
 import type { QuestionRequest } from "../schemas";
@@ -18,9 +14,6 @@ export interface ValidationError {
 
 export type ValidationResult = ValidationSuccess | ValidationError;
 
-/**
- * Validates request body for question endpoint
- */
 export const validateQuestionRequest = (body: unknown): ValidationResult => {
   try {
     const validated = QuestionRequestSchema.parse(body);
