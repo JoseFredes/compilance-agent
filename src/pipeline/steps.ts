@@ -7,9 +7,8 @@ import type { Env, Run, Step, Obligation, LawDoc } from "../types";
 import { LAW_DOCUMENTS, getLawById } from "../config/laws";
 import { LLM_CONFIG } from "../config/constants";
 import { callLlm } from "../services/llm";
-import { loadLawText } from "../services/law-loader";
 import { appendLog } from "../services/run-manager";
-import { truncateLawText } from "../utils/text-processor";
+import { getObligationsForLaw } from "../config/law-obligations";
 
 /**
  * Fallback law selection based on keywords
@@ -136,33 +135,33 @@ export const extractObligationsStep: Step = {
         continue;
       }
 
-      // Load full law text
-      const fullLawText = await loadLawText(env, run, lawId, (msg) => appendLog(run, msg));
+      // Get structured obligations for this law as base
+      const structuredObligations = getObligationsForLaw(lawId);
 
-      // Truncate to fit in LLM context window
-      const truncatedText = truncateLawText(fullLawText);
+      appendLog(run, `[extract_obligations] Customizing obligations for ${law.name} based on user question`);
 
-      appendLog(
-        run,
-        `[extract_obligations] Text loaded for ${law.name} (original: ${fullLawText.length} chars, truncated: ${truncatedText.length} chars)`
-      );
+      // Use LLM to contextualize obligations to user's specific question
+      const contextPrompt = `Based on these compliance obligations and the user's specific question, provide a focused summary:
 
-      // Prompt for obligation extraction
-      const prompt = `You are a legal compliance expert. Based on this Chilean law excerpt, list the key data protection obligations for the company described in the question.
-
-Law: ${law.name}
-
-Key excerpts:
-${truncatedText.substring(0, 8000)}
+Obligations under ${law.name}:
+${structuredObligations}
 
 User's question: ${run.question}
 
-List 3-5 specific obligations in clear bullet points:`;
+Provide a concise summary (3-4 sentences) highlighting the most relevant obligations for this user's situation:`;
 
-      const llmSummary = (await callLlm(env, run, prompt, (msg) => appendLog(run, msg))).trim();
+      let customizedSummary: string;
+      try {
+        customizedSummary = (await callLlm(env, run, contextPrompt, (msg) => appendLog(run, msg), 600)).trim();
+      } catch (error) {
+        appendLog(run, `[extract_obligations] LLM failed, using structured template`);
+        customizedSummary = "";
+      }
 
-      // If LLM returns empty, provide a basic summary
-      const finalSummary = llmSummary || `Based on ${law.name}, companies must comply with data protection and privacy requirements. Specific obligations include maintaining security measures, obtaining user consent, and implementing appropriate data handling procedures.`;
+      // Use LLM response if good, otherwise use structured template
+      const finalSummary = customizedSummary && customizedSummary.length > 100
+        ? customizedSummary
+        : structuredObligations;
 
       const obligation: Obligation = {
         id: `${lawId}::1`,
