@@ -9,6 +9,8 @@ import { LLM_CONFIG } from "../config/constants";
 import { callLlm } from "../services/llm";
 import { appendLog } from "../services/run-manager";
 import { getObligationsForLaw } from "../config/law-obligations";
+import { loadLawText } from "../services/law-loader";
+import { truncateLawText } from "../utils/text-processor";
 
 /**
  * Fallback law selection based on keywords
@@ -113,12 +115,12 @@ export const selectLawsStep: Step = {
 
 /**
  * Step 2: Extract obligations from selected laws
- * Analyzes each law and extracts relevant compliance obligations
+ * Analyzes each law using REAL PDF text and extracts relevant compliance obligations
  */
 export const extractObligationsStep: Step = {
   name: "extract_obligations",
   async run(run: Run, env: Env) {
-    appendLog(run, "[extract_obligations] Extracting obligations using AI...");
+    appendLog(run, "[extract_obligations] Extracting obligations from real PDF texts...");
 
     if (!run.selectedLawIds || run.selectedLawIds.length === 0) {
       appendLog(run, "[extract_obligations] No laws selected, nothing to extract");
@@ -135,32 +137,51 @@ export const extractObligationsStep: Step = {
         continue;
       }
 
-      // Get structured obligations for this law as base
+      appendLog(run, `[extract_obligations] Loading real PDF text for ${law.name}`);
+
+      // Load real PDF text
+      let lawText: string;
+      try {
+        lawText = await loadLawText(env, run, lawId, (msg) => appendLog(run, msg));
+        appendLog(run, `[extract_obligations] Loaded ${lawText.length} chars from ${law.name}`);
+      } catch (error) {
+        appendLog(run, `[extract_obligations] Failed to load PDF text: ${error}`);
+        lawText = "";
+      }
+
+      // Truncate to relevant sections based on keywords and question
+      const relevantText = truncateLawText(lawText, 8000);
+      appendLog(run, `[extract_obligations] Truncated to ${relevantText.length} chars of relevant content`);
+
+      // Get structured obligations as backup
       const structuredObligations = getObligationsForLaw(lawId);
 
-      appendLog(run, `[extract_obligations] Customizing obligations for ${law.name} based on user question`);
+      // Use LLM to extract obligations from real PDF text
+      const extractionPrompt = `You are a legal expert analyzing Chilean law text. Extract the key compliance obligations relevant to the user's question.
 
-      // Use LLM to contextualize obligations to user's specific question
-      const contextPrompt = `Based on these compliance obligations and the user's specific question, provide a focused summary:
-
-Obligations under ${law.name}:
-${structuredObligations}
+Law: ${law.name}
 
 User's question: ${run.question}
 
-Provide a concise summary (3-4 sentences) highlighting the most relevant obligations for this user's situation:`;
+Relevant law text:
+${relevantText}
 
-      let customizedSummary: string;
+Based on the law text above, provide a concise summary (3-5 sentences) of the most important compliance obligations that apply to this user's question. Focus on actionable requirements.
+
+Summary:`;
+
+      let extractedSummary: string;
       try {
-        customizedSummary = (await callLlm(env, run, contextPrompt, (msg) => appendLog(run, msg), 600)).trim();
+        extractedSummary = (await callLlm(env, run, extractionPrompt, (msg) => appendLog(run, msg), 800)).trim();
+        appendLog(run, `[extract_obligations] Extracted ${extractedSummary.length} chars from LLM`);
       } catch (error) {
         appendLog(run, `[extract_obligations] LLM failed, using structured template`);
-        customizedSummary = "";
+        extractedSummary = "";
       }
 
       // Use LLM response if good, otherwise use structured template
-      const finalSummary = customizedSummary && customizedSummary.length > 100
-        ? customizedSummary
+      const finalSummary = extractedSummary && extractedSummary.length > 100
+        ? extractedSummary
         : structuredObligations;
 
       const obligation: Obligation = {
@@ -174,7 +195,7 @@ Provide a concise summary (3-4 sentences) highlighting the most relevant obligat
     }
 
     run.obligations = obligations;
-    appendLog(run, `[extract_obligations] Generated ${obligations.length} obligations`);
+    appendLog(run, `[extract_obligations] Generated ${obligations.length} obligations from real PDF texts`);
   },
 };
 
