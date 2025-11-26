@@ -12,7 +12,8 @@
     "typescript": "^5.9.3"
   },
   "dependencies": {
-    "hono": "^4.10.6"
+    "hono": "^4.10.6",
+    "pdf-parse": "^2.4.5"
   },
   "scripts": {
     "build": "esbuild src/index.ts --bundle --platform=neutral --format=esm --outfile=dist/index.mjs",
