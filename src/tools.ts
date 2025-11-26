@@ -3,7 +3,7 @@
  * Tools are composable functions that can be used by the agent to perform specific tasks
  */
 
-import type { Run, ToolMetric } from "./types";
+import type { Run } from "./types";
 
 export interface Tool<TInput = any, TOutput = any> {
   name: string;
