@@ -413,19 +413,14 @@ const draftAnswerStep: Step = {
       run,
       "[draft_answer] Generando respuesta en base a leyes y obligaciones extraídas..."
     );
-
-    const lawsText =
-      run.selectedLaws && run.selectedLaws.length > 0
-        ? run.selectedLaws.join("; ")
-        : "sin leyes seleccionadas aún";
-
-    const obligationsText =
-      run.obligations && run.obligations.length > 0
-        ? run.obligations
-            .map((o) => `- (${o.lawId}) ${o.title}:\n  ${o.summary}`)
-            .join("\n\n")
-        : "No se detectaron obligaciones específicas (o no se pudo extraer información relevante).";
-
+    const lawsText = run.selectedLaws?.length
+      ? run.selectedLaws.join("; ")
+      : "sin leyes seleccionadas aún";
+    const obligationsText = run.obligations?.length
+      ? run.obligations
+          .map((o) => `- (${o.lawId}) ${o.title}:\n  ${o.summary}`)
+          .join("\n\n")
+      : "No se detectaron obligaciones específicas (o no se pudo extraer información relevante).";
     run.draftAnswer = [
       `Pregunta del usuario:`,
       run.question,
@@ -433,12 +428,11 @@ const draftAnswerStep: Step = {
       `Leyes consideradas por el agente:`,
       lawsText,
       "",
-      `Resumen de obligaciones relevantes:`,
+      `Obligaciones relevantes identificadas:`,
       obligationsText,
       "",
-      `Nota: Esta respuesta no es asesoría legal. En un entorno productivo, este agente debería complementarse con revisión humana y modelos entrenados sobre texto completo de las leyes y sus normas complementarias.`,
+      `Nota: Esta respuesta no constituye asesoría legal y es generada por un agente AI.`,
     ].join("\n");
-
     appendLog(run, "[draft_answer] Respuesta final generada.");
   },
 };
@@ -452,30 +446,30 @@ const pipeline: Step[] = [
 const runAgent = async (env: Env, runId: string): Promise<void> => {
   const run = await loadRun(env, runId);
   if (!run) return;
-
+  const startTotal = Date.now();
   try {
     run.status = RunStatus.RUNNING;
+    run.startedAt = nowISO();
     appendLog(run, "Starting agent...");
     await saveRun(env, run);
-
     for (const step of pipeline) {
       appendLog(run, `[pipeline] Iniciando step: ${step.name}`);
       await saveRun(env, run);
-
       await step.run(run, env);
-
       appendLog(run, `[pipeline] Step completado: ${step.name}`);
       await saveRun(env, run);
     }
-
     run.status = RunStatus.COMPLETED;
-    appendLog(run, "Agent completed");
+    run.completedAt = nowISO();
+    run.totalMs = Date.now() - startTotal;
+    appendLog(run, `Agent completed en ${run.totalMs}ms`);
     await saveRun(env, run);
     return;
   } catch (error) {
     run.status = RunStatus.FAILED;
     run.error = error instanceof Error ? error.message : "Unknown error";
     appendLog(run, `Agent failed: ${run.error}`);
+    run.totalMs = Date.now() - startTotal;
     await saveRun(env, run);
     throw error;
   }
@@ -532,6 +526,22 @@ app.get("/run/:id", async (c) => {
 app.get("/runs", async (c) => {
   const runs = await c.env.RUNS_KV.list();
   return c.json(runs);
+});
+
+app.get("/answer/:id", async (c) => {
+  const id = c.req.param("id");
+  if (!id) return c.json({ error: "Invalid ID" }, 400);
+  const run = await loadRun(c.env, id);
+  if (!run) return c.json({ error: "Run not found" }, 404);
+  return c.json({
+    runId: run.id,
+    status: run.status,
+    question: run.question,
+    answer: run.draftAnswer,
+    obligations: run.obligations ?? [],
+    laws: (run.selectedLawIds ?? []).map((lawId) => getLawById(lawId)),
+    metrics: { totalMs: run.totalMs ?? null, tools: run.tools ?? [] },
+  });
 });
 
 export default app;
