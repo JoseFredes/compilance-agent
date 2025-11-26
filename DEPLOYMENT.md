@@ -1,8 +1,29 @@
 # Deployment Guide
 
-## Cloudflare Workers Deployment
+## Production Deployment
 
-This application is designed to run on Cloudflare Workers. Follow these steps to deploy:
+La aplicación está actualmente deployada y funcionando en producción:
+
+**URL:** https://skyward-compliance-agent.josebmxfredes.workers.dev
+
+**Specs:**
+- Bundle size: 1.3 MB (incluye 760KB de textos de leyes)
+- KV Namespace ID: `c4fe33282b764bef922f00f43ea508b8`
+- Worker startup time: ~12ms
+- Average run time: 25-30 segundos
+
+**Prueba rápida:**
+```bash
+curl -X POST https://skyward-compliance-agent.josebmxfredes.workers.dev/question \
+  -H 'Content-Type: application/json' \
+  -d '{"question":"What are my KYC obligations as a fintech?"}'
+```
+
+---
+
+## Deploy Your Own Instance
+
+Sigue estos pasos para tu propio deployment:
 
 ### Prerequisites
 
@@ -157,3 +178,46 @@ npm run dev
 ```
 
 This uses a local KV simulator. Data is not persisted between restarts.
+
+---
+
+## Law Text Ingestion
+
+Los textos de las leyes ya están incluidos en `src/law_text_ingested.ts` (760KB).
+
+**Para re-ingestar PDFs:**
+
+1. Coloca los PDFs en un directorio accesible
+2. Edita `scripts/ingest-with-unpdf.mjs` con las rutas correctas
+3. Ejecuta el script:
+```bash
+node scripts/ingest-with-unpdf.mjs
+```
+
+Este script:
+- Lee PDFs usando `unpdf`
+- Extrae texto completo
+- Genera `src/law_text_ingested.ts`
+
+**Leyes incluidas:**
+- LEY_21521 (Fintech): 156K chars
+- LEY_19913 (AML): 64K chars
+- LEY_19496 (Consumer Protection)
+- LEY_20393 (Corporate Criminal Liability)
+- LEY_19886 (Public Procurement)
+
+---
+
+## Bundle Size Optimization
+
+**Current bundle:** 1.3 MB
+
+Si el bundle size es un problema:
+- Considera usar Workers Assets para servir los textos
+- Implementa lazy loading de law texts
+- Usa KV directamente sin incluir en el bundle
+
+**Trade-off actual:** Incluimos los textos en el bundle para:
+- Cold start más rápido (no espera KV lookup)
+- Deployment más simple
+- Mayor confiabilidad

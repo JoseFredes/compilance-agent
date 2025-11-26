@@ -1,6 +1,6 @@
-# Compliance Q&A Agent - Skyward Interview Challenge
+# Compliance Q&A Agent
 
-An AI agent that answers questions about regulatory compliance in Chile, analyzing laws related to personal data protection and other relevant legal aspects.
+An AI agent that answers questions about regulatory compliance in Chile, analyzing real law texts to extract obligations related to personal data protection, AML, consumer protection, and corporate criminal liability.
 
 ## Table of Contents
 
@@ -53,35 +53,43 @@ interface Step {
 ```
 
 **Steps implementados:**
-- `selectLawsStep`: Usa LLM para seleccionar leyes relevantes
-- `extractObligationsStep`: Extrae obligaciones legales de cada ley
+- `selectLawsStep`: Usa LLM para seleccionar leyes relevantes basado en la pregunta
+- `extractObligationsStep`: Carga PDFs reales, trunca a secciones relevantes, y extrae obligations con LLM
 - `draftAnswerStep`: Genera respuesta final consolidada
 
-#### 4. **Tools System**
-Sistema de tools composables y reutilizables:
+#### 4. **Real PDF Text Processing**
+Sistema híbrido para analizar textos reales de las leyes:
 
 ```typescript
-interface Tool<TInput, TOutput> {
-  name: string;
-  description: string;
-  execute: (input: TInput, context: ToolContext) => Promise<TOutput>;
-}
+// 1. Load real PDF text (760KB total, cached in KV)
+const lawText = await loadLawText(env, run, lawId);
+
+// 2. Truncate to relevant sections (~8K chars)
+const relevantText = truncateLawText(lawText, 8000);
+
+// 3. LLM analyzes real text
+const obligations = await extractFromText(relevantText, question);
+
+// 4. Structured fallback if LLM fails
+const finalObligations = obligations || getStructuredObligations(lawId);
 ```
 
-**Tools disponibles:**
-- `search_law_text`: Búsqueda dentro de documentos legales
-- `extract_keywords`: Extracción de conceptos clave
-- `analyze_company_context`: Análisis del contexto empresarial
+**Leyes disponibles:**
+- LEY_21521: Fintech (156K chars)
+- LEY_19913: AML / Financial Intelligence Unit (64K chars)
+- LEY_19496: Consumer Protection
+- LEY_20393: Corporate Criminal Liability
+- LEY_19886: Public Procurement
 
 #### 5. **LLM Integration (Cloudflare Workers AI)**
 - Modelo: `@cf/meta/llama-3-8b-instruct`
 - Configuración: max_tokens=1500 (aumentado para respuestas completas)
 - Tracking de métricas: latencia, número de llamadas
 
-#### 6. **Validación (Zod + JSON Schema)**
-- Validación de requests con Zod
-- JSON Schemas documentados en `/schemas`
-- Mensajes de error detallados
+#### 6. **Validación (Zod)**
+- Validación runtime con Zod schemas
+- Type-safe validation con TypeScript
+- Mensajes de error descriptivos
 
 ---
 
@@ -159,32 +167,50 @@ const selectionPrompt = `
 
 **Fallback:** Si LLM no retorna IDs válidos, usa keyword-based approach.
 
-### 5. **¿Por qué Textos de Muestra vs PDFs Reales?**
+### 5. **¿Por qué PDFs Reales + Structured Fallback?**
 
-**Decisión pragmática:**
-- Problemas de compatibilidad con `pdf-parse` en ES modules
-- Tiempo limitado para el challenge
-- Los samples son **suficientes** para demostrar funcionalidad
+**Approach híbrido:**
+Usamos los textos completos de los PDFs (760KB total) pero con sistema de fallback:
 
-**Samples mejorados incluyen:**
-- Artículos relevantes sobre protección de datos
-- Obligaciones específicas
-- Sanciones y plazos
-- Suficiente detalle para generar respuestas útiles
+```typescript
+// 1. Load real PDF (cached in KV)
+const lawText = await loadLawText(env, run, lawId);
 
-**Próximo paso:** Implementar ingesta real usando librería compatible o API externa (ej: Cloudflare PDF parser).
+// 2. Truncate to relevant sections
+const relevantText = truncateLawText(lawText, 8000);
 
-### 6. **¿Por qué Zod + JSON Schema?**
+// 3. LLM extracts from real text
+const extracted = await llm.analyze(relevantText, question);
 
-**Zod:**
-- Validación en runtime
-- Type-safe (TypeScript)
-- Mensajes de error claros
+// 4. Fallback to structured template if LLM fails
+return extracted || getStructuredObligations(lawId);
+```
 
-**JSON Schema:**
-- Documentación estándar de la API
-- Compatible con herramientas de generación de clientes
-- Autodocumentación
+**Ventajas:**
+- ✅ Usa texto real de las leyes (más preciso)
+- ✅ Trunca inteligentemente basado en keywords
+- ✅ Fallback estructurado si LLM falla o timeout
+- ✅ Cache en KV para performance
+
+**Trade-off:** Bundle size de 1.3MB pero mejor calidad de respuestas.
+
+### 6. **¿Por qué Zod para Validación?**
+
+**Beneficios:**
+- ✅ Validación runtime + type safety
+- ✅ Mensajes de error claros y descriptivos
+- ✅ TypeScript inference automática
+- ✅ Composable y reusable
+
+**Ejemplo:**
+```typescript
+const QuestionRequestSchema = z.object({
+  question: z.string().min(10).max(2000),
+});
+
+// Type inferred automatically
+type QuestionRequest = z.infer<typeof QuestionRequestSchema>;
+```
 
 ### 7. **Metrics & Observability**
 
@@ -501,40 +527,37 @@ Lista todos los runs (útil para debugging).
 ```
 compilance-agent/
 ├── src/
-│   ├── index.ts                  # Main entry point (exports Hono app)
+│   ├── index.ts                    # Main entry point (exports Hono app)
 │   ├── api/
-│   │   ├── routes.ts            # API endpoint handlers
-│   │   └── validators.ts        # Request validation logic
+│   │   ├── routes.ts              # API endpoint handlers
+│   │   └── validators.ts          # Request validation logic
 │   ├── agent/
-│   │   └── executor.ts          # Agent pipeline orchestration
+│   │   └── executor.ts            # Agent pipeline orchestration
 │   ├── pipeline/
-│   │   └── steps.ts             # Modular pipeline steps
+│   │   └── steps.ts               # Modular pipeline steps
 │   ├── services/
-│   │   ├── llm.ts               # LLM service
-│   │   ├── law-loader.ts        # Law text loading service
-│   │   └── run-manager.ts       # Run persistence and lifecycle
+│   │   ├── llm.ts                 # LLM service
+│   │   ├── law-loader.ts          # Law text loading + caching
+│   │   └── run-manager.ts         # Run persistence and lifecycle
 │   ├── utils/
-│   │   ├── metrics.ts           # Metrics tracking utilities
-│   │   └── text-processor.ts   # Text processing utilities
+│   │   ├── metrics.ts             # Metrics tracking utilities
+│   │   └── text-processor.ts     # Text truncation utilities
 │   ├── config/
-│   │   ├── laws.ts              # Law metadata and configuration
-│   │   └── constants.ts         # Application constants
+│   │   ├── laws.ts                # Law metadata (5 Chilean laws)
+│   │   ├── constants.ts           # Application constants
+│   │   └── law-obligations.ts    # Structured obligation templates
 │   ├── data/
-│   │   └── law-samples.ts       # Sample law texts (fallback)
-│   ├── schemas.ts               # Zod validation schemas
-│   ├── tools.ts                 # Reusable tool functions
-│   ├── types.ts                 # Shared TypeScript types
-│   └── law_text_ingested.ts    # Real law texts from PDFs
-├── schemas/                      # JSON Schema documentation
-│   ├── question-request.json
-│   ├── run-response.json
-│   └── answer-response.json
+│   │   └── law-samples.ts         # Fallback law samples
+│   ├── schemas.ts                 # Zod validation schemas
+│   ├── types.ts                   # Shared TypeScript types
+│   └── law_text_ingested.ts      # Real law texts from PDFs (760KB)
 ├── scripts/
-│   └── ingest-with-unpdf.mjs    # Script to ingest PDFs
-├── wrangler.toml                 # Cloudflare Workers config
+│   └── ingest-with-unpdf.mjs      # PDF ingestion script
+├── wrangler.toml                   # Cloudflare Workers config
 ├── package.json
 ├── tsconfig.json
-└── README.md
+├── README.md
+└── DEPLOYMENT.md
 ```
 
 ### Key Files
@@ -545,32 +568,30 @@ compilance-agent/
 
 - **`src/agent/executor.ts`**: Agent pipeline orchestration and execution logic
 
-- **`src/pipeline/steps.ts`**: Modular pipeline steps:
-  - `selectLawsStep`: Selects relevant laws using LLM
-  - `extractObligationsStep`: Extracts obligations from law texts
-  - `draftAnswerStep`: Generates final response
+- **`src/pipeline/steps.ts`**: Pipeline modular con 3 steps:
+  - `selectLawsStep`: Selecciona leyes relevantes con LLM + keyword fallback
+  - `extractObligationsStep`: Carga PDF real → trunca → extrae con LLM → fallback estructurado
+  - `draftAnswerStep`: Genera respuesta final formateada
 
-- **`src/services/`**: Core services:
-  - `llm.ts`: LLM interaction service
-  - `law-loader.ts`: Law text loading with caching
-  - `run-manager.ts`: Run lifecycle and persistence
+- **`src/services/`**: Servicios core:
+  - `llm.ts`: Wrapper de Cloudflare Workers AI con métricas
+  - `law-loader.ts`: Carga textos de PDFs con cache en KV
+  - `run-manager.ts`: Lifecycle y persistencia de runs
 
-- **`src/config/`**: Configuration:
-  - `laws.ts`: Law metadata (LAW_DOCUMENTS)
-  - `constants.ts`: Application constants (LLM config, text limits, etc.)
+- **`src/config/`**: Configuración:
+  - `laws.ts`: Metadata de 5 leyes chilenas (LEY_DOCUMENTS)
+  - `constants.ts`: Constantes (LLM config, límites de texto, keywords)
+  - `law-obligations.ts`: Templates estructurados de obligations (fallback)
 
-- **`src/schemas.ts`**: Zod validation schemas
-  - QuestionRequestSchema
-  - RunResponseSchema
-  - AnswerResponseSchema
+- **`src/utils/`**: Utilidades:
+  - `metrics.ts`: Sistema de tracking de performance (tool calls, latencias)
+  - `text-processor.ts`: Truncamiento inteligente basado en keywords
 
-- **`src/tools.ts`**: Modular tool system
-  - searchLawTextTool
-  - extractKeywordsTool
-  - analyzeCompanyContextTool
+- **`src/law_text_ingested.ts`**: Textos completos extraídos de PDFs (760KB)
 
-- **`src/types.ts`**: Shared TypeScript types
-  - Run, Step, Obligation, LawDoc, Env, etc.
+- **`src/schemas.ts`**: Schemas de validación Zod con type inference
+
+- **`src/types.ts`**: Tipos compartidos (Run, Step, Obligation, LawDoc, Env, etc.)
 
 ---
 
@@ -578,10 +599,10 @@ compilance-agent/
 
 ### Limitaciones Actuales
 
-1. **Textos de Leyes = Samples**
-   - No se extraen los PDFs reales
-   - Los samples son suficientes para demo pero no exhaustivos
-   - **Solución futura:** Implementar PDF parsing compatible con Workers
+1. **Bundle Size**
+   - 1.3MB debido a PDFs ingested (760KB de texto)
+   - Trade-off aceptable: mejor precisión vs tamaño
+   - Cache en KV reduce impacto en performance
 
 2. **LLM = Llama 3 8B**
    - Modelo más pequeño (gratuito)
@@ -619,8 +640,8 @@ compilance-agent/
 
 ### Mejoras de Funcionalidad
 
-- [ ] **Ingesta real de PDFs**: Usar librería compatible o API externa
-- [ ] **Vector Search**: Embeddings para búsqueda semántica en leyes
+- [x] ~~**Ingesta real de PDFs**~~: ✅ Implementado con unpdf
+- [ ] **Vector Search**: Embeddings para búsqueda semántica en leyes (mejoraría relevancia)
 - [ ] **Multi-Agent System**: Agente coordinador + agentes especializados por ley
 - [ ] **Streaming**: Implementar SSE para updates en tiempo real
 - [ ] **Cache Inteligente**: Cache de respuestas similares
