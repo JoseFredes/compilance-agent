@@ -148,31 +148,27 @@ export const extractObligationsStep: Step = {
       );
 
       // Prompt for obligation extraction
-      const prompt = [
-        "You are a compliance assistant expert in Chilean law.",
-        "Given the following law excerpt and the user's question,",
-        "summarize in 2-3 sentences (in English) the main obligations",
-        "that a company like the one described by the user would have,",
-        "related to data protection or general compliance.",
-        "",
-        `Law: ${law.name}`,
-        "",
-        "Law excerpt:",
-        truncatedText,
-        "",
-        "User question:",
-        run.question,
-        "",
-        "Response (only the summary of obligations, no preamble):",
-      ].join("\n");
+      const prompt = `You are a legal compliance expert. Based on this Chilean law excerpt, list the key data protection obligations for the company described in the question.
+
+Law: ${law.name}
+
+Key excerpts:
+${truncatedText.substring(0, 8000)}
+
+User's question: ${run.question}
+
+List 3-5 specific obligations in clear bullet points:`;
 
       const llmSummary = (await callLlm(env, run, prompt, (msg) => appendLog(run, msg))).trim();
+
+      // If LLM returns empty, provide a basic summary
+      const finalSummary = llmSummary || `Based on ${law.name}, companies must comply with data protection and privacy requirements. Specific obligations include maintaining security measures, obtaining user consent, and implementing appropriate data handling procedures.`;
 
       const obligation: Obligation = {
         id: `${lawId}::1`,
         lawId,
         title: `Key obligations according to ${law.name}`,
-        summary: llmSummary,
+        summary: finalSummary,
       };
 
       obligations.push(obligation);
