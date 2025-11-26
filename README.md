@@ -706,38 +706,4 @@ curl -sS -X POST http://127.0.0.1:8787/question \
 
 ---
 
-## Notas para la Entrevista
-
-### Puntos Clave a Discutir
-
-1. **Pipeline vs Single Agent**: ¿Cuándo usar cada approach?
-2. **Asincronía**: ¿Cómo manejar runs muy largos (30+ min)?
-3. **Escalabilidad**: ¿Qué pasa con 1000 requests/segundo?
-4. **Precisión**: ¿Cómo mejorar quality de respuestas?
-5. **Observability**: ¿Qué métricas adicionales son útiles?
-
-### Features para Live Coding
-
-Algunas ideas de lo que podríamos agregar en vivo:
-
-- Implementar un nuevo tool (ej: `summarize_obligation`)
-- Agregar un nuevo step al pipeline (ej: `validate_answer`)
-- Implementar cache de respuestas
-- Agregar filtros por región/industria
-- Implementar scoring de relevancia
-
----
-
-## Contacto
-
-Para cualquier duda sobre el código o la implementación, estoy disponible para discutir en la entrevista en vivo.
-
-**Tiempo invertido aproximado:** 3-4 horas
-- 30min: Setup y exploración de Workers AI
-- 1h: Implementación core (pipeline, endpoints)
-- 1h: Mejoras (LLM selection, tools, validation)
-- 1h: Documentación (README, schemas, comments)
-
----
-
-**Gracias por revisar mi solución! 🚀**
+**Built with Cloudflare Workers + Workers AI 🚀**
