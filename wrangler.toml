@@ -1,11 +1,17 @@
+# Cloudflare Workers Configuration
+# See DEPLOYMENT.md for deployment instructions
+
 name = "skyward-compliance-agent"
 main = "src/index.ts"
 compatibility_date = "2025-11-09"
 
-
+# KV Namespace for storing runs and law texts
+# For deployment: Create a KV namespace with `wrangler kv:namespace create "RUNS_KV"`
+# and replace the id below with the generated ID
 [[kv_namespaces]]
 binding = "RUNS_KV"
-id = "dummy-id-for-local"
+id = "dummy-id-for-local"  # Replace with your KV namespace ID for production
 
+# AI binding for Workers AI (no configuration needed)
 [ai]
 binding = "AI"
